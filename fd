@@ -1,0 +1,1733 @@
+--[[
+    GENGAR HUB V1 - ULTIMATE BUILD
+    Obsidian UI Library
+    Gerado com todas as funcionalidades selecionadas
+--]]
+
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+
+local player = game.Players.LocalPlayer
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
+
+-- ========== CONFIG SAVE SYSTEM ==========
+local configData = {}
+local configFile = "GengarHub_Config.json"
+
+local function saveConfig()
+    pcall(function()
+        if writefile then
+            writefile(configFile, HttpService:JSONEncode(configData))
+        end
+    end)
+end
+
+local function loadConfig()
+    pcall(function()
+        if readfile and isfile and isfile(configFile) then
+            local data = readfile(configFile)
+            configData = HttpService:JSONDecode(data)
+        end
+    end)
+end
+
+-- ========== ANTI KICK ADONIS ==========
+local antiKickActive = true
+local function setupAntiKick()
+    pcall(function()
+        local mt = getrawmetatable(game)
+        local oldNamecall = mt.__namecall
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "Kick" and antiKickActive then
+                if self == player or (typeof(self) == "Instance" and self:IsA("Player") and self == player) then
+                    warn("[GENGAR HUB] Kick bloqueado via __namecall!")
+                    Library:Notify({ Title = "SEGURANCA", Description = "Tentativa de kick bloqueada!", Time = 3 })
+                    return nil
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+        setreadonly(mt, true)
+        if hookfunction then
+            local oldKick = hookfunction(player.Kick, function(self, ...)
+                if self == player and antiKickActive then
+                    warn("[GENGAR HUB] Kick direto bloqueado!")
+                    Library:Notify({ Title = "SEGURANCA", Description = "Kick direto bloqueado!", Time = 3 })
+                    return nil
+                end
+                return oldKick(self, ...)
+            end)
+        end
+    end)
+end
+setupAntiKick()
+
+-- ========== ANTI CHEAT BYPASS ==========
+local function setupAntiCheatBypass()
+    pcall(function()
+        -- Spoof de walkspeed para anti-cheat que verifica
+        local mt = getrawmetatable(game)
+        local oldIndex = mt.__index
+        setreadonly(mt, false)
+        mt.__index = newcclosure(function(self, key)
+            if self:IsA("Humanoid") and key == "WalkSpeed" then
+                return 16
+            end
+            return oldIndex(self, key)
+        end)
+        setreadonly(mt, true)
+    end)
+end
+setupAntiCheatBypass()
+
+-- ========== ANTI REPORT ==========
+local function setupAntiReport()
+    pcall(function()
+        -- Remove notificações de report
+        StarterGui:SetCore("SendNotification", {
+            Title = "",
+            Text = "",
+            Duration = 0
+        })
+    end)
+end
+
+-- ========== SPOOF HWID (PLACEHOLDER) ==========
+local function spoofHWID()
+    notify("HWID Spoof ativado (simulado)")
+    warn("[GENGAR HUB] HWID spoof nao e possivel 100% via script Lua. Use executor com suporte nativo.")
+end
+
+-- ========== UTILS ==========
+local function getChar()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        return char, char:FindFirstChild("HumanoidRootPart"), char:FindFirstChild("Humanoid")
+    end
+    return nil, nil, nil
+end
+
+local function notify(msg)
+    Library:Notify({ Title = "GENGAR HUB", Description = msg, Time = 2.5 })
+end
+
+-- ========== PLAYER: WALKSPEED ==========
+local currentWalkSpeed = 16
+local function setWalkSpeed(val)
+    local _, _, hum = getChar()
+    if hum then
+        currentWalkSpeed = math.clamp(val, 16, 500)
+        hum.WalkSpeed = currentWalkSpeed
+        notify("WalkSpeed: " .. currentWalkSpeed)
+    end
+end
+
+-- ========== PLAYER: FLY ==========
+local flying = false
+local flySpeed = 120
+local bodyVel = nil
+local bodyGyro = nil
+local flyConnection = nil
+
+local function startFly()
+    local char, hrp, hum = getChar()
+    if not hrp then notify("Aguarde personagem!") return end
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+    bodyVel = Instance.new("BodyVelocity")
+    bodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    bodyVel.Parent = hrp
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+    bodyGyro.Parent = hrp
+    flying = true
+    notify("Fly ATIVADO! WASD + Q/E")
+    flyConnection = RunService.Heartbeat:Connect(function()
+        if not flying then return end
+        local c, h = getChar()
+        if not h then return end
+        local move = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + Vector3.new(0, 0, -1) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move + Vector3.new(0, 0, 1) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move + Vector3.new(-1, 0, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + Vector3.new(1, 0, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then move = move + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then move = move + Vector3.new(0, -1, 0) end
+        if move.Magnitude > 0 then
+            move = move.Unit
+            local cam = Workspace.CurrentCamera.CFrame
+            local vel = (cam.LookVector * move.Z + cam.RightVector * move.X + cam.UpVector * move.Y) * flySpeed
+            if bodyVel then bodyVel.Velocity = vel end
+            if bodyGyro then bodyGyro.CFrame = CFrame.lookAt(h.Position, h.Position + vel.Unit) end
+        else
+            if bodyVel then bodyVel.Velocity = Vector3.zero end
+        end
+    end)
+end
+
+local function stopFly()
+    if bodyVel then bodyVel:Destroy() bodyVel = nil end
+    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+    flying = false
+    local _, _, hum = getChar()
+    if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+    notify("Fly DESATIVADO")
+end
+
+local function toggleFly()
+    if flying then stopFly() else startFly() end
+end
+
+-- ========== PLAYER: IMA OTIMIZADO ==========
+local magnetActive = false
+local magnetConnection = nil
+local fixed = {}
+local welds = {}
+
+local overlapParams = OverlapParams.new()
+overlapParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+local function updateMagnetFilter()
+    local char = player.Character
+    if char then overlapParams.FilterDescendantsInstances = {char} end
+end
+
+local function toggleMagnet()
+    magnetActive = not magnetActive
+    if magnetActive then
+        updateMagnetFilter()
+        notify("IMA ATIVADO!")
+        magnetConnection = RunService.Heartbeat:Connect(function()
+            if not magnetActive then return end
+            local char, hrp = getChar()
+            if not hrp then return end
+            updateMagnetFilter()
+            local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 50, overlapParams)
+            for _, obj in pairs(parts) do
+                if obj.Name == "TranspBox" and not obj.Anchored and not fixed[obj] then
+                    local distance = (obj.Position - hrp.Position).Magnitude
+                    local direction = (hrp.Position - obj.Position).Unit
+                    obj.AssemblyLinearVelocity = direction * 45
+                    if distance < 4 then
+                        obj.AssemblyLinearVelocity = Vector3.zero
+                        local weld = Instance.new("WeldConstraint")
+                        weld.Part0 = hrp
+                        weld.Part1 = obj
+                        weld.Parent = obj
+                        fixed[obj] = true
+                        welds[obj] = weld
+                    end
+                end
+            end
+        end)
+    else
+        if magnetConnection then magnetConnection:Disconnect() magnetConnection = nil end
+        for obj, weld in pairs(welds) do pcall(function() if weld then weld:Destroy() end end) end
+        table.clear(fixed)
+        table.clear(welds)
+        notify("IMA DESATIVADO!")
+    end
+end
+
+-- ========== PLAYER: INVISIBILIDADE ==========
+local invisibleActive = false
+local originalTransparency = {}
+
+local function toggleInvisible()
+    local char = player.Character
+    if not char then notify("Aguarde personagem!") return end
+    invisibleActive = not invisibleActive
+    if invisibleActive then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") or part:IsA("MeshPart") then
+                if originalTransparency[part] == nil then originalTransparency[part] = part.Transparency end
+                part.Transparency = 0.95
+            end
+            if part:IsA("Decal") or part:IsA("Texture") then
+                part.Transparency = 0.95
+            end
+        end
+        notify("Invisibilidade ATIVADA!")
+    else
+        for part, trans in pairs(originalTransparency) do
+            if part and part.Parent then part.Transparency = trans end
+        end
+        originalTransparency = {}
+        notify("Invisibilidade DESATIVADA!")
+    end
+end
+
+-- ========== PLAYER: CURA ==========
+local function heal()
+    local _, _, hum = getChar()
+    if hum then
+        hum.Health = hum.MaxHealth
+        notify("Cura Total aplicada!")
+    end
+end
+
+-- ========== PLAYER: NOCLIP ==========
+local noclipActive = false
+local noclipConnection = nil
+
+local function toggleNoclip()
+    noclipActive = not noclipActive
+    if noclipActive then
+        notify("NoClip ATIVADO!")
+        noclipConnection = RunService.Stepped:Connect(function()
+            if not noclipActive then return end
+            local char = player.Character
+            if char then
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+        notify("NoClip DESATIVADO!")
+    end
+end
+
+-- ========== PLAYER: GOD MODE ==========
+local godModeActive = false
+local godModeConnection = nil
+
+local function toggleGodMode()
+    godModeActive = not godModeActive
+    if godModeActive then
+        notify("God Mode ATIVADO!")
+        godModeConnection = RunService.Heartbeat:Connect(function()
+            if not godModeActive then return end
+            local _, _, hum = getChar()
+            if hum then
+                hum.MaxHealth = math.huge
+                hum.Health = math.huge
+            end
+        end)
+    else
+        if godModeConnection then godModeConnection:Disconnect() godModeConnection = nil end
+        local _, _, hum = getChar()
+        if hum then
+            hum.MaxHealth = 100
+            hum.Health = hum.MaxHealth
+        end
+        notify("God Mode DESATIVADO!")
+    end
+end
+
+-- ========== PLAYER: INFINITE JUMP ==========
+local infJumpActive = false
+
+local function toggleInfJump()
+    infJumpActive = not infJumpActive
+    notify("Infinite Jump " .. (infJumpActive and "ATIVADO!" or "DESATIVADO!"))
+end
+
+UserInputService.JumpRequest:Connect(function()
+    if infJumpActive then
+        local _, _, hum = getChar()
+        if hum then
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+        end
+    end
+end)
+
+-- ========== ANTI AFK ==========
+local antiAfkEnabled = false
+local function toggleAntiAFK(state)
+    antiAfkEnabled = state
+    if state then
+        notify("Anti AFK ATIVADO!")
+        task.spawn(function()
+            while antiAfkEnabled do
+                task.wait(math.random(55, 65))
+                if not antiAfkEnabled then break end
+                local _, _, hum = getChar()
+                if hum then pcall(function() hum:Move(Vector3.new(0, 0, 1), true) end) end
+            end
+        end)
+    else
+        notify("Anti AFK DESATIVADO!")
+    end
+end
+
+-- ========== ESP COMPLETO ==========
+local espBoxEnabled = false
+local espNameEnabled = false
+local espLineEnabled = false
+local espDistanceEnabled = false
+local espSkeletonEnabled = false
+local espChamsEnabled = false
+local espColor = Color3.fromRGB(255, 50, 50)
+local espTeamCheck = false
+local espStorage = {}
+local espConnection = nil
+
+local function clearESP()
+    for _, data in pairs(espStorage) do
+        pcall(function()
+            if data.box then data.box:Destroy() end
+            if data.name then data.name:Destroy() end
+            if data.line then
+                if data.line.beam then data.line.beam:Destroy() end
+                if data.line.att0 then data.line.att0:Destroy() end
+                if data.line.att1 then data.line.att1:Destroy() end
+            end
+            if data.distance then data.distance:Destroy() end
+            if data.skeleton then
+                for _, line in pairs(data.skeleton) do
+                    pcall(function() line:Destroy() end)
+                end
+            end
+            if data.chams then
+                for _, cham in pairs(data.chams) do
+                    pcall(function() cham:Destroy() end)
+                end
+            end
+        end)
+    end
+    espStorage = {}
+end
+
+local function isTeammate(targetPlayer)
+    if not espTeamCheck then return false end
+    if targetPlayer.Team and player.Team then
+        return targetPlayer.Team == player.Team
+    end
+    return false
+end
+
+local skeletonJoints = {
+    {"Head", "UpperTorso"},
+    {"UpperTorso", "LowerTorso"},
+    {"UpperTorso", "LeftUpperArm"},
+    {"LeftUpperArm", "LeftLowerArm"},
+    {"LeftLowerArm", "LeftHand"},
+    {"UpperTorso", "RightUpperArm"},
+    {"RightUpperArm", "RightLowerArm"},
+    {"RightLowerArm", "RightHand"},
+    {"LowerTorso", "LeftUpperLeg"},
+    {"LeftUpperLeg", "LeftLowerLeg"},
+    {"LeftLowerLeg", "LeftFoot"},
+    {"LowerTorso", "RightUpperLeg"},
+    {"RightUpperLeg", "RightLowerLeg"},
+    {"RightLowerLeg", "RightFoot"}
+}
+
+local function updateESP()
+    if not (espBoxEnabled or espNameEnabled or espLineEnabled or espDistanceEnabled or espSkeletonEnabled or espChamsEnabled) then
+        clearESP()
+        return
+    end
+    local myChar, myHRP = getChar()
+    if not myHRP then clearESP() return end
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            local head = p.Character:FindFirstChild("Head")
+            local hum = p.Character:FindFirstChild("Humanoid")
+            if not hrp or not head then continue end
+            if isTeammate(p) then continue end
+
+            local data = espStorage[p]
+            if not data then data = {} espStorage[p] = data end
+            local dist = math.floor((hrp.Position - myHRP.Position).Magnitude)
+
+            -- BOX ESP
+            if espBoxEnabled then
+                if not data.box or not data.box.Parent then
+                    local box = Instance.new("BoxHandleAdornment")
+                    box.Size = hrp.Size + Vector3.new(2, 3, 1)
+                    box.Adornee = hrp
+                    box.Color3 = espColor
+                    box.Transparency = 0.6
+                    box.AlwaysOnTop = true
+                    box.ZIndex = 5
+                    box.Parent = hrp
+                    data.box = box
+                else
+                    data.box.Color3 = espColor
+                end
+            elseif data.box then
+                pcall(function() data.box:Destroy() end)
+                data.box = nil
+            end
+
+            -- NAME ESP
+            if espNameEnabled then
+                local displayText = p.Name
+                if espDistanceEnabled then
+                    displayText = p.Name .. " [" .. dist .. "m]"
+                end
+                if not data.name or not data.name.Parent then
+                    local bg = Instance.new("BillboardGui")
+                    bg.Name = "GH_ESP_Name"
+                    bg.Adornee = head
+                    bg.Size = UDim2.new(0, 200, 0, 40)
+                    bg.StudsOffset = Vector3.new(0, 2.8, 0)
+                    bg.AlwaysOnTop = true
+                    bg.Parent = head
+                    local lbl = Instance.new("TextLabel")
+                    lbl.Size = UDim2.new(1, 0, 1, 0)
+                    lbl.BackgroundTransparency = 1
+                    lbl.Text = displayText .. " [" .. math.floor(hum and hum.Health or 0) .. "/" .. math.floor(hum and hum.MaxHealth or 100) .. "]"
+                    lbl.TextColor3 = espColor
+                    lbl.TextStrokeTransparency = 0.4
+                    lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
+                    lbl.TextSize = 13
+                    lbl.Font = Enum.Font.GothamBold
+                    lbl.Parent = bg
+                    data.name = bg
+                else
+                    local lbl = data.name:FindFirstChildOfClass("TextLabel")
+                    if lbl then
+                        lbl.Text = displayText .. " [" .. math.floor(hum and hum.Health or 0) .. "/" .. math.floor(hum and hum.MaxHealth or 100) .. "]"
+                        lbl.TextColor3 = espColor
+                    end
+                end
+            elseif data.name then
+                pcall(function() data.name:Destroy() end)
+                data.name = nil
+            end
+
+            -- DISTANCE ONLY (se name estiver desativado)
+            if espDistanceEnabled and not espNameEnabled then
+                if not data.distance or not data.distance.Parent then
+                    local bg = Instance.new("BillboardGui")
+                    bg.Name = "GH_ESP_Dist"
+                    bg.Adornee = head
+                    bg.Size = UDim2.new(0, 100, 0, 20)
+                    bg.StudsOffset = Vector3.new(0, 1.5, 0)
+                    bg.AlwaysOnTop = true
+                    bg.Parent = head
+                    local lbl = Instance.new("TextLabel")
+                    lbl.Size = UDim2.new(1, 0, 1, 0)
+                    lbl.BackgroundTransparency = 1
+                    lbl.Text = dist .. "m"
+                    lbl.TextColor3 = espColor
+                    lbl.TextStrokeTransparency = 0.4
+                    lbl.TextSize = 12
+                    lbl.Font = Enum.Font.GothamBold
+                    lbl.Parent = bg
+                    data.distance = bg
+                else
+                    local lbl = data.distance:FindFirstChildOfClass("TextLabel")
+                    if lbl then lbl.Text = dist .. "m" lbl.TextColor3 = espColor end
+                end
+            elseif data.distance then
+                pcall(function() data.distance:Destroy() end)
+                data.distance = nil
+            end
+
+            -- LINE ESP
+            if espLineEnabled and myHRP then
+                if not data.line or not data.line.beam or not data.line.beam.Parent then
+                    local att0 = Instance.new("Attachment")
+                    att0.Position = Vector3.new(0, 0, 0)
+                    att0.Parent = myHRP
+                    local att1 = Instance.new("Attachment")
+                    att1.Position = Vector3.new(0, 0, 0)
+                    att1.Parent = hrp
+                    local beam = Instance.new("Beam")
+                    beam.Attachment0 = att0
+                    beam.Attachment1 = att1
+                    beam.Color = ColorSequence.new(espColor)
+                    beam.Width0 = 0.1
+                    beam.Width1 = 0.1
+                    beam.FaceCamera = true
+                    beam.LightEmission = 1
+                    beam.LightInfluence = 0
+                    beam.Parent = myHRP
+                    data.line = {beam = beam, att0 = att0, att1 = att1}
+                else
+                    data.line.beam.Color = ColorSequence.new(espColor)
+                end
+            elseif data.line then
+                pcall(function()
+                    if data.line.beam then data.line.beam:Destroy() end
+                    if data.line.att0 then data.line.att0:Destroy() end
+                    if data.line.att1 then data.line.att1:Destroy() end
+                end)
+                data.line = nil
+            end
+
+            -- SKELETON ESP
+            if espSkeletonEnabled then
+                if not data.skeleton then data.skeleton = {} end
+                local idx = 1
+                for _, joint in pairs(skeletonJoints) do
+                    local p1 = p.Character:FindFirstChild(joint[1])
+                    local p2 = p.Character:FindFirstChild(joint[2])
+                    if p1 and p2 then
+                        local line = data.skeleton[idx]
+                        if not line or not line.Parent then
+                            line = Instance.new("Beam")
+                            line.Width0 = 0.05
+                            line.Width1 = 0.05
+                            line.Color = ColorSequence.new(espColor)
+                            line.LightEmission = 1
+                            line.LightInfluence = 0
+                            line.FaceCamera = true
+                            line.Parent = Workspace.Terrain
+                            data.skeleton[idx] = line
+                        end
+                        local a0 = line:FindFirstChild("A0") or Instance.new("Attachment")
+                        a0.Name = "A0"
+                        a0.Parent = p1
+                        local a1 = line:FindFirstChild("A1") or Instance.new("Attachment")
+                        a1.Name = "A1"
+                        a1.Parent = p2
+                        line.Attachment0 = a0
+                        line.Attachment1 = a1
+                        line.Color = ColorSequence.new(espColor)
+                        idx = idx + 1
+                    end
+                end
+                -- cleanup extra lines
+                while data.skeleton[idx] do
+                    pcall(function() data.skeleton[idx]:Destroy() end)
+                    data.skeleton[idx] = nil
+                    idx = idx + 1
+                end
+            elseif data.skeleton then
+                for _, line in pairs(data.skeleton) do
+                    pcall(function() line:Destroy() end)
+                end
+                data.skeleton = nil
+            end
+
+            -- CHAMS ESP
+            if espChamsEnabled then
+                if not data.chams then data.chams = {} end
+                local idx = 1
+                for _, part in pairs(p.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        local cham = data.chams[idx]
+                        if not cham or not cham.Parent then
+                            cham = Instance.new("BoxHandleAdornment")
+                            cham.AlwaysOnTop = true
+                            cham.ZIndex = 2
+                            cham.Parent = part
+                            data.chams[idx] = cham
+                        end
+                        cham.Size = part.Size
+                        cham.Adornee = part
+                        cham.Color3 = espColor
+                        cham.Transparency = 0.7
+                        idx = idx + 1
+                    end
+                end
+                while data.chams[idx] do
+                    pcall(function() data.chams[idx]:Destroy() end)
+                    data.chams[idx] = nil
+                    idx = idx + 1
+                end
+            elseif data.chams then
+                for _, cham in pairs(data.chams) do
+                    pcall(function() cham:Destroy() end)
+                end
+                data.chams = nil
+            end
+
+        else
+            if espStorage[p] then
+                pcall(function()
+                    local d = espStorage[p]
+                    if d.box then d.box:Destroy() end
+                    if d.name then d.name:Destroy() end
+                    if d.line then
+                        if d.line.beam then d.line.beam:Destroy() end
+                        if d.line.att0 then d.line.att0:Destroy() end
+                        if d.line.att1 then d.line.att1:Destroy() end
+                    end
+                    if d.distance then d.distance:Destroy() end
+                    if d.skeleton then
+                        for _, line in pairs(d.skeleton) do pcall(function() line:Destroy() end) end
+                    end
+                    if d.chams then
+                        for _, cham in pairs(d.chams) do pcall(function() cham:Destroy() end) end
+                    end
+                end)
+                espStorage[p] = nil
+            end
+        end
+    end
+end
+
+local function startESP()
+    if espConnection then espConnection:Disconnect() end
+    espConnection = RunService.Heartbeat:Connect(function()
+        if espBoxEnabled or espNameEnabled or espLineEnabled or espDistanceEnabled or espSkeletonEnabled or espChamsEnabled then
+            updateESP()
+        else
+            clearESP()
+        end
+    end)
+end
+
+-- ========== TELEPORTES ==========
+local function teleport(pos, name)
+    local _, hrp = getChar()
+    if hrp then
+        hrp.CFrame = pos
+        notify("Teleportado: " .. name)
+    end
+end
+
+-- ========== TELEPORTE CUSTOM (2 PONTOS) ==========
+local customPoint1 = nil
+local customPoint2 = nil
+local customToggle = 1
+
+local function markCustomPoint()
+    local _, hrp = getChar()
+    if not hrp then return end
+    if customToggle == 1 then
+        customPoint1 = hrp.CFrame
+        notify("Ponto 1 salvo!")
+        customToggle = 2
+    else
+        customPoint2 = hrp.CFrame
+        notify("Ponto 2 salvo!")
+        customToggle = 1
+    end
+end
+
+local function tpCustom1()
+    if customPoint1 then
+        local _, hrp = getChar()
+        if hrp then hrp.CFrame = customPoint1 + Vector3.new(0, 3, 0) notify("TP: Ponto 1") end
+    else
+        notify("Ponto 1 nao definido!")
+    end
+end
+
+local function tpCustom2()
+    if customPoint2 then
+        local _, hrp = getChar()
+        if hrp then hrp.CFrame = customPoint2 + Vector3.new(0, 3, 0) notify("TP: Ponto 2") end
+    else
+        notify("Ponto 2 nao definido!")
+    end
+end
+
+-- ========== FARM MANUAL - ENTREGAS (COM FLY TP ALTO) ==========
+local jobs = {
+    {name = "Entrega 1", jobId = "Job1", pos = Vector3.new(-3328.11, 65.69, -3408.47)},
+    {name = "Entrega 2", jobId = "Job6", pos = Vector3.new(-3222.35, 66.08, -3712.02)},
+    {name = "Entrega 3", jobId = "Job2", pos = Vector3.new(-3123.64, 68.89, -4252.85)},
+    {name = "Entrega 4", jobId = "Job9", pos = Vector3.new(-3042.61, 67.09, -3691.33)},
+    {name = "Entrega 5", jobId = "Job4", pos = Vector3.new(-25220.53, 66.86, -5295.90)},
+    {name = "Entrega 6", jobId = "Job7", pos = Vector3.new(-3856.52, 64.81, -4899.54)},
+    {name = "Entrega 7", jobId = "Job3", pos = Vector3.new(-3641.78, 65.43, -2506.34)},
+}
+
+local farmLoopEnabled = false
+local currentJobIndex = 1
+local farmFlyHeight = 200 -- Altura acima do solo para voar
+
+local function startJob(jobId)
+    local args = {jobId, "Start"}
+    local remote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("PromptTransJob")
+    pcall(function() remote:FireServer(unpack(args)) end)
+end
+
+-- Fly TP: sobe alto, vai ate a posicao, desce na coordenada
+local function flyTeleportTo(targetPos, jobName)
+    local _, hrp, hum = getChar()
+    if not hrp or not hum then notify("Sem personagem!") return false end
+
+    -- Ativa fly se nao estiver ativo
+    local wasFlying = flying
+    if not flying then
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+        bodyVel = Instance.new("BodyVelocity")
+        bodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        bodyVel.Parent = hrp
+        bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        bodyGyro.Parent = hrp
+        flying = true
+    end
+
+    -- 1. SOBE ALTO (evita paredes)
+    notify("Subindo alto...")
+    local highPos = hrp.Position + Vector3.new(0, farmFlyHeight, 0)
+    local startTime = tick()
+    while tick() - startTime < 3 do
+        if not flying or not bodyVel then break end
+        local dir = (highPos - hrp.Position).Unit
+        bodyVel.Velocity = dir * 150
+        bodyGyro.CFrame = CFrame.lookAt(hrp.Position, highPos)
+        task.wait(0.03)
+    end
+
+    -- 2. VOA ATE A POSICAO NO ALTO
+    notify("Voando ate " .. jobName .. " (alto)...")
+    local flyTarget = Vector3.new(targetPos.X, targetPos.Y + farmFlyHeight, targetPos.Z)
+    startTime = tick()
+    while tick() - startTime < 5 do
+        if not flying or not bodyVel then break end
+        local dist = (hrp.Position - flyTarget).Magnitude
+        if dist < 10 then break end
+        local dir = (flyTarget - hrp.Position).Unit
+        bodyVel.Velocity = dir * 200
+        bodyGyro.CFrame = CFrame.lookAt(hrp.Position, flyTarget)
+        task.wait(0.03)
+    end
+
+    -- 3. DESCE NA COORDENADA EXATA
+    notify("Descendo em " .. jobName .. "...")
+    local finalTarget = targetPos + Vector3.new(0, 5, 0)
+    startTime = tick()
+    while tick() - startTime < 4 do
+        if not flying or not bodyVel then break end
+        local dist = (hrp.Position - finalTarget).Magnitude
+        if dist < 5 then break end
+        local dir = (finalTarget - hrp.Position).Unit
+        bodyVel.Velocity = dir * 120
+        bodyGyro.CFrame = CFrame.lookAt(hrp.Position, finalTarget)
+        task.wait(0.03)
+    end
+
+    -- Para o personagem
+    if bodyVel then bodyVel.Velocity = Vector3.zero end
+
+    -- Se nao estava voando antes, desativa
+    if not wasFlying then
+        task.wait(0.5)
+        if bodyVel then bodyVel:Destroy() bodyVel = nil end
+        if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+        flying = false
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+    end
+
+    notify("Chegou em: " .. jobName)
+    return true
+end
+
+local function runFarmLoop()
+    task.spawn(function()
+        while farmLoopEnabled do
+            local job = jobs[currentJobIndex]
+            if not job then currentJobIndex = 1 job = jobs[1] end
+            if not farmLoopEnabled then break end
+
+            notify("[FARM] Iniciando: " .. job.name)
+            startJob(job.jobId)
+            task.wait(math.random(2, 4))
+
+            if not farmLoopEnabled then break end
+
+            notify("[FARM] Indo para: " .. job.name)
+            local success = flyTeleportTo(job.pos, job.name)
+            if not success then
+                notify("[FARM] Erro no fly, pulando...")
+            end
+
+            -- Espera na entrega
+            task.wait(math.random(4, 6))
+
+            if not farmLoopEnabled then break end
+
+            currentJobIndex = currentJobIndex + 1
+            if currentJobIndex > #jobs then currentJobIndex = 1 end
+
+            task.wait(math.random(2, 4))
+        end
+    end)
+end
+
+-- Farm manual individual (tambem usa fly alto)
+local function manualFarmJob(job)
+    startJob(job.jobId)
+    task.wait(1.5)
+    flyTeleportTo(job.pos, job.name)
+end
+
+-- ========== AUTO CLICK ==========
+local autoClickEnabled = false
+local autoClickConnection = nil
+
+local function toggleAutoClick()
+    autoClickEnabled = not autoClickEnabled
+    if autoClickEnabled then
+        notify("Auto Click ATIVADO!")
+        autoClickConnection = RunService.Heartbeat:Connect(function()
+            if not autoClickEnabled then return end
+            pcall(function()
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                task.wait(0.05)
+                vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+            end)
+            task.wait(0.1)
+        end)
+    else
+        if autoClickConnection then autoClickConnection:Disconnect() autoClickConnection = nil end
+        notify("Auto Click DESATIVADO!")
+    end
+end
+
+-- ========== VEICULO TELEPORTE ==========
+local function teleportVehicle()
+    local char, hrp = getChar()
+    if not hrp then notify("Sem personagem!") return end
+    local seat = char:FindFirstChildOfClass("SeatWeld")
+    if seat and seat.Parent then
+        local vehicle = seat.Parent
+        vehicle:PivotTo(CFrame.new(hrp.Position + Vector3.new(0, 5, 0)))
+        notify("Veiculo teleportado!")
+    else
+        notify("Voce nao esta em um veiculo!")
+    end
+end
+
+-- ========== VISUAL / MUNDO ==========
+local originalLighting = {}
+local visualConnections = {}
+
+local function saveOriginalLighting()
+    originalLighting.Brightness = Lighting.Brightness
+    originalLighting.Ambient = Lighting.Ambient
+    originalLighting.FogStart = Lighting.FogStart
+    originalLighting.FogEnd = Lighting.FogEnd
+    originalLighting.ClockTime = Lighting.ClockTime
+    originalLighting.FogColor = Lighting.FogColor
+end
+saveOriginalLighting()
+
+local function toggleFullBright(state)
+    if state then
+        Lighting.Brightness = 10
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        notify("FullBright ATIVADO!")
+    else
+        Lighting.Brightness = originalLighting.Brightness or 2
+        Lighting.Ambient = originalLighting.Ambient or Color3.fromRGB(128, 128, 128)
+        notify("FullBright DESATIVADO!")
+    end
+end
+
+local function toggleNoFog(state)
+    if state then
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 100000
+        Lighting.FogColor = Color3.fromRGB(255, 255, 255)
+        notify("No Fog ATIVADO!")
+    else
+        Lighting.FogStart = originalLighting.FogStart or 0
+        Lighting.FogEnd = originalLighting.FogEnd or 1000
+        Lighting.FogColor = originalLighting.FogColor or Color3.fromRGB(192, 192, 192)
+        notify("No Fog DESATIVADO!")
+    end
+end
+
+local function toggleNoClouds(state)
+    if state then
+        for _, v in pairs(Lighting:GetDescendants()) do
+            if v:IsA("Clouds") then v.Enabled = false end
+        end
+        notify("Sem Nuvens ATIVADO!")
+    else
+        for _, v in pairs(Lighting:GetDescendants()) do
+            if v:IsA("Clouds") then v.Enabled = true end
+        end
+        notify("Sem Nuvens DESATIVADO!")
+    end
+end
+
+local function setFOV(val)
+    Workspace.CurrentCamera.FieldOfView = val
+    notify("FOV: " .. val)
+end
+
+local function setTimeOfDay(val)
+    Lighting.ClockTime = val
+    notify("Horario: " .. val)
+end
+
+local xrayEnabled = false
+local xrayStorage = {}
+
+local function toggleXRay(state)
+    xrayEnabled = state
+    if state then
+        notify("X-Ray ATIVADO!")
+        for _, part in pairs(Workspace:GetDescendants()) do
+            if part:IsA("BasePart") and not part.Parent:FindFirstChild("Humanoid") then
+                if part.Transparency < 0.9 then
+                    xrayStorage[part] = part.Transparency
+                    part.Transparency = 0.7
+                end
+            end
+        end
+    else
+        notify("X-Ray DESATIVADO!")
+        for part, trans in pairs(xrayStorage) do
+            if part and part.Parent then part.Transparency = trans end
+        end
+        xrayStorage = {}
+    end
+end
+
+-- ========== SERVIDOR ==========
+local function serverHop()
+    notify("Procurando servidor vazio...")
+    task.spawn(function()
+        local success, servers = pcall(function()
+            local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+            local response = game:HttpGet(url)
+            return HttpService:JSONDecode(response)
+        end)
+        if success and servers and servers.data then
+            local bestServer = nil
+            local lowestPlayers = math.huge
+            for _, server in pairs(servers.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    if server.playing < lowestPlayers then
+                        lowestPlayers = server.playing
+                        bestServer = server
+                    end
+                end
+            end
+            if bestServer then
+                notify("Teleportando para servidor com " .. bestServer.playing .. " jogadores...")
+                task.wait(1.5)
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, bestServer.id, player)
+            else
+                notify("Nenhum servidor vazio encontrado!")
+            end
+        else
+            notify("Erro ao buscar servidores!")
+        end
+    end)
+end
+
+-- ========== VERIFICAR ADMIN ==========
+local function checkAdminInServer()
+    local adminFound = false
+    local adminNames = {}
+    local adminTools = {
+        "BanHammer", "Admin", "Mod", "Ban", "Kick", "Handcuffs",
+        "Fly", "Teleport", "God", "HealAll", "KillAll", "AdminPanel"
+    }
+    local adonisDetected = false
+    pcall(function()
+        if ReplicatedStorage:FindFirstChild("ADONIS") or 
+           ReplicatedStorage:FindFirstChild("Adonis") or
+           ReplicatedStorage:FindFirstChild("HDAdmin") or
+           Workspace:FindFirstChild("ADONIS") then
+            adonisDetected = true
+        end
+    end)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            local backpack = p:FindFirstChild("Backpack")
+            if backpack then
+                for _, tool in pairs(backpack:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        for _, adminName in pairs(adminTools) do
+                            if string.find(string.lower(tool.Name), string.lower(adminName)) then
+                                adminFound = true
+                                table.insert(adminNames, p.Name .. " (Tool: " .. tool.Name .. ")")
+                            end
+                        end
+                    end
+                end
+            end
+            if p.Character then
+                for _, tool in pairs(p.Character:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        for _, adminName in pairs(adminTools) do
+                            if string.find(string.lower(tool.Name), string.lower(adminName)) then
+                                adminFound = true
+                                table.insert(adminNames, p.Name .. " (Tool: " .. tool.Name .. ")")
+                            end
+                        end
+                    end
+                end
+                local nameLower = string.lower(p.Name)
+                if string.find(nameLower, "admin") or string.find(nameLower, "mod") or 
+                   string.find(nameLower, "dev") or string.find(nameLower, "owner") then
+                    adminFound = true
+                    table.insert(adminNames, p.Name .. " (Nome suspeito)")
+                end
+            end
+        end
+    end
+    return adminFound, adminNames, adonisDetected
+end
+
+-- ========== PLAYER LIST ==========
+local function getPlayerList()
+    local list = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            local dist = "N/A"
+            local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+            local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and myHRP then
+                dist = math.floor((hrp.Position - myHRP.Position).Magnitude) .. "m"
+            end
+            table.insert(list, p.Name .. " | " .. (p.Team and p.Team.Name or "Sem time") .. " | " .. dist)
+        end
+    end
+    return list
+end
+
+-- ========== COPY PLAYER ==========
+local function copyPlayer(targetName)
+    local target = Players:FindFirstChild(targetName)
+    if not target then notify("Jogador nao encontrado!") return end
+    if not target.Character then notify("Jogador sem personagem!") return end
+
+    local char = player.Character
+    if not char then notify("Aguarde personagem!") return end
+
+    -- Copiar roupas
+    for _, item in pairs(target.Character:GetChildren()) do
+        if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") then
+            local clone = item:Clone()
+            clone.Parent = char
+        end
+        if item:IsA("Accessory") then
+            local clone = item:Clone()
+            clone.Parent = char
+        end
+    end
+
+    -- Copiar cores do corpo
+    local targetHum = target.Character:FindFirstChild("Humanoid")
+    local myHum = char:FindFirstChild("Humanoid")
+    if targetHum and myHum then
+        myHum.BodyTypeScale = targetHum.BodyTypeScale
+        myHum.BodyDepthScale = targetHum.BodyDepthScale
+        myHum.BodyWidthScale = targetHum.BodyWidthScale
+        myHum.BodyHeightScale = targetHum.BodyHeightScale
+        myHum.HeadScale = targetHum.HeadScale
+    end
+
+    notify("Apariencia copiada de " .. targetName)
+end
+
+-- ========== CONSOLE DEBUG ==========
+local function openConsole()
+    pcall(function()
+        if game:GetService("StarterGui") then
+            game:GetService("StarterGui"):SetCore("DevConsoleVisible", true)
+        end
+    end)
+    notify("Console aberto! (F9)")
+end
+
+-- ========== INFINITE YIELD ==========
+local function loadInfiniteYield()
+    notify("Carregando Infinite Yield...")
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-IY-InfiniteYield-137097"))()
+    end)
+    if success then
+        notify("Infinite Yield carregado!")
+    else
+        notify("Erro ao carregar IY")
+        warn(err)
+    end
+end
+
+-- ========== TECLA T = TOGGLE IMA ==========
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.T then
+        toggleMagnet()
+    end
+end)
+
+-- ========== RESPAWN HANDLER ==========
+player.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    local _, _, hum = getChar()
+    if hum then hum.WalkSpeed = currentWalkSpeed end
+    if flying then stopFly() end
+    if invisibleActive then
+        invisibleActive = false
+        originalTransparency = {}
+    end
+    if noclipActive then
+        noclipActive = false
+        if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    end
+end)
+
+-- ========== JANELA ==========
+local Window = Library:CreateWindow({
+    Title = "GENGAR HUB",
+    Footer = "byDavyd | ULTIMATE BUILD",
+    Size = UDim2.fromOffset(720, 580),
+    Center = true,
+    AutoShow = true,
+})
+
+local HomeTab     = Window:AddTab("Home", "home")
+local PlayerTab   = Window:AddTab("Player", "user")
+local EspTab      = Window:AddTab("ESP", "eye")
+local SecurityTab = Window:AddTab("Seguranca", "shield")
+local ServerTab   = Window:AddTab("Servidor", "server")
+local TpTab       = Window:AddTab("Teleportes", "map-pin")
+local FarmTab     = Window:AddTab("Farm", "briefcase")
+local VisualTab   = Window:AddTab("Visual", "sun")
+local ExtraTab    = Window:AddTab("Extras", "zap")
+
+-- ========== HOME ==========
+do
+    local Info = HomeTab:AddLeftGroupbox("Informacoes")
+    Info:AddLabel("Versao: V1 ULTIMATE")
+    Info:AddLabel("Engine: GENGAR")
+    Info:AddLabel("Status: Protegido")
+
+    local Upd = HomeTab:AddRightGroupbox("Funcoes Ativas")
+    Upd:AddLabel("Player: Fly | Speed | Ima | Invis | Cura")
+    Upd:AddLabel("Player: NoClip | God Mode | Inf Jump")
+    Upd:AddLabel("ESP: Box | Name | Line | Dist | Skeleton | Chams")
+    Upd:AddLabel("Seguranca: Anti Kick | Anti AFK | Bypass")
+    Upd:AddLabel("Servidor: Hop | Rejoin | Admin Check")
+    Upd:AddLabel("Farm: Entregas 1-7 | Loop | Auto Click")
+    Upd:AddLabel("Visual: FullBright | NoFog | XRay | FOV")
+    Upd:AddLabel("Tecla T: Toggle Ima")
+end
+
+-- ========== PLAYER ==========
+do
+    local MoveGroup = PlayerTab:AddLeftGroupbox("Movimento")
+
+    MoveGroup:AddSlider("WalkSpeed", {
+        Text = "WalkSpeed",
+        Default = 16, Min = 16, Max = 500, Rounding = 0,
+        Callback = function(v) setWalkSpeed(v) end
+    })
+
+    MoveGroup:AddToggle("FlyToggle", {
+        Text = "Fly",
+        Default = false,
+        Callback = function(state)
+            if state and not flying then startFly()
+            elseif not state and flying then stopFly() end
+        end
+    })
+
+    MoveGroup:AddSlider("FlySpeed", {
+        Text = "Velocidade do Fly",
+        Default = 120, Min = 10, Max = 300, Rounding = 0,
+        Callback = function(v) flySpeed = v notify("Fly Speed: " .. v) end
+    })
+
+    MoveGroup:AddToggle("InfJumpToggle", {
+        Text = "Infinite Jump",
+        Default = false,
+        Callback = function(state) toggleInfJump() end
+    })
+
+    local PowersGroup = PlayerTab:AddRightGroupbox("Poderes")
+
+    PowersGroup:AddToggle("MagnetToggle", {
+        Text = "Ima de Objetos (TranspBox)",
+        Default = false,
+        Callback = function(state)
+            if state and not magnetActive then toggleMagnet()
+            elseif not state and magnetActive then toggleMagnet() end
+        end
+    })
+
+    PowersGroup:AddToggle("InvisibleToggle", {
+        Text = "Invisibilidade",
+        Default = false,
+        Callback = function(state)
+            if state and not invisibleActive then toggleInvisible()
+            elseif not state and invisibleActive then toggleInvisible() end
+        end
+    })
+
+    PowersGroup:AddToggle("NoclipToggle", {
+        Text = "NoClip",
+        Default = false,
+        Callback = function(state)
+            if state and not noclipActive then toggleNoclip()
+            elseif not state and noclipActive then toggleNoclip() end
+        end
+    })
+
+    PowersGroup:AddToggle("GodModeToggle", {
+        Text = "God Mode",
+        Default = false,
+        Callback = function(state)
+            if state and not godModeActive then toggleGodMode()
+            elseif not state and godModeActive then toggleGodMode() end
+        end
+    })
+
+    PowersGroup:AddButton({ Text = "Cura Total", Callback = heal })
+end
+
+-- ========== ESP ==========
+do
+    local EspMain = EspTab:AddLeftGroupbox("ESP Controls")
+
+    EspMain:AddToggle("ESPBox", {
+        Text = "ESP Box",
+        Default = false,
+        Callback = function(state)
+            espBoxEnabled = state
+            if state then startESP() end
+        end
+    })
+
+    EspMain:AddToggle("ESPName", {
+        Text = "ESP Name",
+        Default = false,
+        Callback = function(state)
+            espNameEnabled = state
+            if state then startESP() end
+        end
+    })
+
+    EspMain:AddToggle("ESPLine", {
+        Text = "ESP Line",
+        Default = false,
+        Callback = function(state)
+            espLineEnabled = state
+            if state then startESP() end
+        end
+    })
+
+    EspMain:AddToggle("ESPDistance", {
+        Text = "ESP Distancia",
+        Default = false,
+        Callback = function(state)
+            espDistanceEnabled = state
+            if state then startESP() end
+        end
+    })
+
+    EspMain:AddToggle("ESPSkeleton", {
+        Text = "ESP Esqueleto",
+        Default = false,
+        Callback = function(state)
+            espSkeletonEnabled = state
+            if state then startESP() end
+        end
+    })
+
+    EspMain:AddToggle("ESPChams", {
+        Text = "ESP Chams (X-Ray Player)",
+        Default = false,
+        Callback = function(state)
+            espChamsEnabled = state
+            if state then startESP() end
+        end
+    })
+
+    EspMain:AddToggle("ESPTeamCheck", {
+        Text = "Ignorar Time",
+        Default = false,
+        Callback = function(state)
+            espTeamCheck = state
+            clearESP()
+        end
+    })
+
+    local EspColorBox = EspTab:AddRightGroupbox("Cor do ESP")
+
+    EspColorBox:AddLabel("Cor atual:")
+    local colorLabel = EspColorBox:AddLabel("R:255 G:50 B:50")
+
+    EspColorBox:AddSlider("Red", {
+        Text = "Vermelho",
+        Default = 255, Min = 0, Max = 255, Rounding = 0,
+        Callback = function(v)
+            espColor = Color3.fromRGB(v, math.floor(espColor.G * 255), math.floor(espColor.B * 255))
+            colorLabel:SetText("R:" .. math.floor(espColor.R * 255) .. " G:" .. math.floor(espColor.G * 255) .. " B:" .. math.floor(espColor.B * 255))
+        end
+    })
+
+    EspColorBox:AddSlider("Green", {
+        Text = "Verde",
+        Default = 50, Min = 0, Max = 255, Rounding = 0,
+        Callback = function(v)
+            espColor = Color3.fromRGB(math.floor(espColor.R * 255), v, math.floor(espColor.B * 255))
+            colorLabel:SetText("R:" .. math.floor(espColor.R * 255) .. " G:" .. math.floor(espColor.G * 255) .. " B:" .. math.floor(espColor.B * 255))
+        end
+    })
+
+    EspColorBox:AddSlider("Blue", {
+        Text = "Azul",
+        Default = 50, Min = 0, Max = 255, Rounding = 0,
+        Callback = function(v)
+            espColor = Color3.fromRGB(math.floor(espColor.R * 255), math.floor(espColor.G * 255), v)
+            colorLabel:SetText("R:" .. math.floor(espColor.R * 255) .. " G:" .. math.floor(espColor.G * 255) .. " B:" .. math.floor(espColor.B * 255))
+        end
+    })
+
+    EspColorBox:AddButton({
+        Text = "Cor Padrao (Vermelho)",
+        Callback = function()
+            espColor = Color3.fromRGB(255, 50, 50)
+            colorLabel:SetText("R:255 G:50 B:50")
+            notify("Cor padrao restaurada!")
+        end
+    })
+
+    EspColorBox:AddButton({
+        Text = "Cor Verde",
+        Callback = function()
+            espColor = Color3.fromRGB(50, 255, 50)
+            colorLabel:SetText("R:50 G:255 B:50")
+            notify("Cor verde aplicada!")
+        end
+    })
+
+    EspColorBox:AddButton({
+        Text = "Cor Azul",
+        Callback = function()
+            espColor = Color3.fromRGB(50, 150, 255)
+            colorLabel:SetText("R:50 G:150 B:255")
+            notify("Cor azul aplicada!")
+        end
+    })
+
+    EspColorBox:AddButton({
+        Text = "Cor Amarela",
+        Callback = function()
+            espColor = Color3.fromRGB(255, 255, 50)
+            colorLabel:SetText("R:255 G:255 B:50")
+            notify("Cor amarela aplicada!")
+        end
+    })
+
+    EspColorBox:AddButton({
+        Text = "Cor Rosa",
+        Callback = function()
+            espColor = Color3.fromRGB(255, 50, 200)
+            colorLabel:SetText("R:255 G:50 B:200")
+            notify("Cor rosa aplicada!")
+        end
+    })
+end
+
+-- ========== SEGURANCA ==========
+do
+    local SecGroup = SecurityTab:AddLeftGroupbox("Protecao")
+
+    SecGroup:AddToggle("AntiKick", {
+        Text = "Anti Kick Adonis",
+        Default = true,
+        Callback = function(state)
+            antiKickActive = state
+            notify("Anti Kick " .. (state and "ATIVADO!" or "DESATIVADO!"))
+        end
+    })
+
+    SecGroup:AddToggle("AntiAFK", {
+        Text = "Anti AFK",
+        Default = false,
+        Callback = function(state)
+            toggleAntiAFK(state)
+        end
+    })
+
+    SecGroup:AddToggle("AntiCheatBypass", {
+        Text = "Bypass Anti-Cheat",
+        Default = false,
+        Callback = function(state)
+            notify("Anti-Cheat Bypass " .. (state and "ATIVADO!" or "DESATIVADO!"))
+        end
+    })
+
+    SecGroup:AddButton({
+        Text = "Anti Report (Executar)",
+        Callback = function()
+            setupAntiReport()
+            notify("Anti Report aplicado!")
+        end
+    })
+
+    SecGroup:AddButton({
+        Text = "Spoof HWID",
+        Callback = spoofHWID
+    })
+
+    SecGroup:AddLabel("Anti Kick bloqueia:")
+    SecGroup:AddLabel("- player:Kick()")
+    SecGroup:AddLabel("- __namecall Kick")
+end
+
+-- ========== SERVIDOR ==========
+do
+    local ServerGroup = ServerTab:AddLeftGroupbox("Servidor")
+
+    ServerGroup:AddButton({
+        Text = "Server Hop (Menos Pessoas)",
+        Callback = serverHop
+    })
+
+    ServerGroup:AddButton({
+        Text = "Rejoin (Mesmo Servidor)",
+        Callback = function()
+            notify("Reconectando ao mesmo servidor...")
+            task.wait(1)
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+            end)
+        end
+    })
+
+    ServerGroup:AddButton({
+        Text = "Verificar Admins no Servidor",
+        Callback = function()
+            local found, names, adonis = checkAdminInServer()
+            if found then
+                notify("ADMIN DETECTADO! Verifique console (F9)")
+                warn("========== ADMINS DETECTADOS ==========")
+                for _, name in pairs(names) do warn("  -> " .. name) end
+                warn("======================================")
+            elseif adonis then
+                notify("Adonis detectado! Cuidado.")
+                warn("[GENGAR HUB] Sistema Adonis detectado!")
+            else
+                notify("Nenhum admin detectado. Seguro!")
+            end
+        end
+    })
+
+    local PlayerGroup = ServerTab:AddRightGroupbox("Jogadores")
+
+    PlayerGroup:AddButton({
+        Text = "Listar Jogadores (Console)",
+        Callback = function()
+            local list = getPlayerList()
+            warn("========== JOGADORES NO SERVIDOR ==========")
+            for _, entry in pairs(list) do warn("  -> " .. entry) end
+            warn("Total: " .. #list .. " jogadores")
+            warn("==========================================")
+            notify("Lista no console (F9)!")
+        end
+    })
+
+    local copyInput = ""
+    PlayerGroup:AddInput("CopyPlayerInput", {
+        Text = "Nome do Jogador",
+        Default = "",
+        Callback = function(v) copyInput = v end
+    })
+
+    PlayerGroup:AddButton({
+        Text = "Copiar Apariencia",
+        Callback = function()
+            if copyInput ~= "" then
+                copyPlayer(copyInput)
+            else
+                notify("Digite um nome primeiro!")
+            end
+        end
+    })
+end
+
+-- ========== TELEPORTES ==========
+do
+    local TpGroup1 = TpTab:AddLeftGroupbox("Locais Fixos")
+    TpGroup1:AddButton({ Text = "Drag Race",       Callback = function() teleport(CFrame.new(-3950, 64, -4880), "Drag Race") end })
+    TpGroup1:AddButton({ Text = "Zona Caixas",     Callback = function() teleport(CFrame.new(-25676, 32, -5874), "Zona Caixas") end })
+    TpGroup1:AddButton({ Text = "Zona Entrega",    Callback = function() teleport(CFrame.new(-3183, 65, -3715), "Zona Entrega") end })
+    TpGroup1:AddButton({ Text = "Auto Pecas",      Callback = function() teleport(CFrame.new(-3328, 65, -3422), "Auto Pecas") end })
+
+    local TpGroup2 = TpTab:AddRightGroupbox("Mais Locais")
+    TpGroup2:AddButton({ Text = "Posto",           Callback = function() teleport(CFrame.new(-3214, 66, -3697), "Posto") end })
+    TpGroup2:AddButton({ Text = "Concessionaria",  Callback = function() teleport(CFrame.new(-3080, 66, -3689), "Concessionaria") end })
+    TpGroup2:AddButton({ Text = "Construcao",      Callback = function() teleport(CFrame.new(-3618, 65, -2508), "Construcao") end })
+    TpGroup2:AddButton({ Text = "Ferro Velho",     Callback = function() teleport(CFrame.new(-3147, 64, -4246), "Ferro Velho") end })
+
+    local TpCustom = TpTab:AddLeftGroupbox("Teleporte Custom (2 Pontos)")
+    TpCustom:AddButton({ Text = "Marcar Ponto (Alterna 1/2)", Callback = markCustomPoint })
+    TpCustom:AddButton({ Text = "Teleportar Ponto 1", Callback = tpCustom1 })
+    TpCustom:AddButton({ Text = "Teleportar Ponto 2", Callback = tpCustom2 })
+
+    local TpVeh = TpTab:AddRightGroupbox("Veiculo")
+    TpVeh:AddButton({ Text = "Teleportar Veiculo ate Voce", Callback = teleportVehicle })
+end
+
+-- ========== FARM ==========
+do
+    local FarmGroup = FarmTab:AddLeftGroupbox("Entregas Manuais (Fly Alto)")
+
+    FarmGroup:AddButton({
+        Text = "Entrega 1",
+        Callback = function() manualFarmJob(jobs[1]) end
+    })
+    FarmGroup:AddButton({
+        Text = "Entrega 2",
+        Callback = function() manualFarmJob(jobs[2]) end
+    })
+    FarmGroup:AddButton({
+        Text = "Entrega 3",
+        Callback = function() manualFarmJob(jobs[3]) end
+    })
+    FarmGroup:AddButton({
+        Text = "Entrega 4",
+        Callback = function() manualFarmJob(jobs[4]) end
+    })
+    FarmGroup:AddButton({
+        Text = "Entrega 5",
+        Callback = function() manualFarmJob(jobs[5]) end
+    })
+    FarmGroup:AddButton({
+        Text = "Entrega 6",
+        Callback = function() manualFarmJob(jobs[6]) end
+    })
+    FarmGroup:AddButton({
+        Text = "Entrega 7",
+        Callback = function() manualFarmJob(jobs[7]) end
+    })
+
+    FarmGroup:AddToggle("FarmLoop", {
+        Text = "Auto Farm Loop ",
+        Default = false,
+        Callback = function(state)
+            farmLoopEnabled = state
+            if state then
+                notify("AUTO FARM ATIVADO!")
+                runFarmLoop()
+            else
+                notify("AUTO FARM DESATIVADO!")
+            end
+        end
+    })
+
+    FarmGroup:AddSlider("FarmHeight", {
+        Text = "Altura do Fly Farm",
+        Default = 200, Min = 50, Max = 500, Rounding = 0,
+        Callback = function(v)
+            farmFlyHeight = v
+            notify("Altura do farm: " .. v .. " studs")
+        end
+    })
+
+    local AutoGroup = FarmTab:AddRightGroupbox("Automacao")
+
+    AutoGroup:AddToggle("AutoClick", {
+        Text = "Auto Click",
+        Default = false,
+        Callback = function(state)
+            if state and not autoClickEnabled then toggleAutoClick()
+            elseif not state and autoClickEnabled then toggleAutoClick() end
+        end
+    })
+
+    AutoGroup:AddLabel("Farm usa fly em altitude")
+    AutoGroup:AddLabel("alta para evitar paredes")
+    AutoGroup:AddLabel("e desce na coordenada.")
+end
+
+-- ========== VISUAL ==========
+do
+    local VisGroup = VisualTab:AddLeftGroupbox("Mundo")
+
+    VisGroup:AddToggle("FullBright", {
+        Text = "FullBright",
+        Default = false,
+        Callback = function(state) toggleFullBright(state) end
+    })
+
+    VisGroup:AddToggle("NoFog", {
+        Text = "No Fog",
+        Default = false,
+        Callback = function(state) toggleNoFog(state) end
+    })
+
+    VisGroup:AddToggle("NoClouds", {
+        Text = "Sem Nuvens",
+        Default = false,
+        Callback = function(state) toggleNoClouds(state) end
+    })
+
+    VisGroup:AddToggle("XRay", {
+        Text = "X-Ray (Paredes)",
+        Default = false,
+        Callback = function(state) toggleXRay(state) end
+    })
+
+    local VisRight = VisualTab:AddRightGroupbox("Camera / Tempo")
+
+    VisRight:AddSlider("FOV", {
+        Text = "Field of View",
+        Default = 70, Min = 30, Max = 120, Rounding = 0,
+        Callback = function(v) setFOV(v) end
+    })
+
+    VisRight:AddSlider("TimeOfDay", {
+        Text = "Horario do Dia",
+        Default = 12, Min = 0, Max = 24, Rounding = 1,
+        Callback = function(v) setTimeOfDay(v) end
+    })
+end
+
+-- ========== EXTRAS ==========
+do
+    local ExtraGroup = ExtraTab:AddLeftGroupbox("Ferramentas")
+
+    ExtraGroup:AddButton({
+        Text = "Executar Infinite Yield",
+        Callback = loadInfiniteYield
+    })
+
+    ExtraGroup:AddButton({
+        Text = "Abrir Console (F9)",
+        Callback = openConsole
+    })
+
+    ExtraGroup:AddButton({
+        Text = "Salvar Configuracoes",
+        Callback = function()
+            saveConfig()
+            notify("Configuracoes salvas!")
+        end
+    })
+
+    ExtraGroup:AddButton({
+        Text = "Carregar Configuracoes",
+        Callback = function()
+            loadConfig()
+            notify("Configuracoes carregadas!")
+        end
+    })
+
+    ExtraGroup:AddLabel("Tecla T: Ativa Ima")
+    ExtraGroup:AddLabel("Respawn: Auto-reset de funcoes")
+end
+
+-- ========== INICIALIZAR ==========
+notify("GENGAR HUB V1 ULTIMATE CARREGADO!")
+task.wait(0.3)
+notify("Dev: Davyd e ! SD ;3")
+print("GENGAR HUB V1 ULTIMATE CARREGADO!")
